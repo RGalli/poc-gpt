@@ -2,9 +2,12 @@
 
 import { AnswerSection, type StoredValue } from "@/components/AnswerSection";
 import { PromptForm } from "@/components/PromptForm";
-import { LLMChain } from "langchain/chains";
+import { RetrievalQAChain } from "langchain/chains";
 import { ChatOpenAI } from "langchain/chat_models/openai";
+import { PDFLoader } from "langchain/document_loaders/fs/pdf";
+import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate } from "langchain/prompts";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import type { Dispatch, SetStateAction } from "react";
 import { useState } from "react";
 
@@ -13,7 +16,7 @@ export default function Home() {
 
   const chatOpenAi = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY,
-    temperature: 0.1,
+    temperature: 0,
     modelName: "gpt-3.5-turbo",
     maxTokens: 1000,
   });
@@ -24,25 +27,14 @@ export default function Home() {
     setNewQuestion: Dispatch<SetStateAction<string>>,
     setNewPersona: Dispatch<SetStateAction<string>>
   ) => {
-    // const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming =
-    //   {
-    //     model: "gpt-3.5-turbo",
-    //     temperature: 0,
-    //     max_tokens: 1000,
-    //     top_p: 1,
-    //     frequency_penalty: 0.0,
-    //     presence_penalty: 0.0,
-    //     stop: ["/"],
-    //     messages: [
-    //       { role: "system", content: persona || "Atendente de chat" },
-    //     ],
-    //   };
 
-    // const completeOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming =
-    //   {
-    //     ...params,
-    //     messages: [{ role: "system", content: persona || "Atendente de chat" }, { role: "user", content: newQuestion }],
-    //   };
+    const loader = new PDFLoader("/home/luizsotero/data/dev/findup/poc-gpt/cv-linkedin.pdf");
+    const docs = await loader.load();
+
+    const vectorStore = await MemoryVectorStore.fromDocuments(docs, new OpenAIEmbeddings());
+
+    // const resultOne = await vectorStore.similaritySearch("Luiz Sotero", 1);
+
     const question = newQuestion;
     const template = "Você é um(a) {persona}.";
     const systemMessagePrompt = SystemMessagePromptTemplate.fromTemplate(template);
@@ -51,10 +43,12 @@ export default function Home() {
 
     const chatPrompt = ChatPromptTemplate.fromMessages([systemMessagePrompt, humanMessagePrompt]);
 
-    const chain = new LLMChain({
-      llm: chatOpenAi,
-      prompt: chatPrompt,
-    });
+    // const chain = new LLMChain({
+    //   llm: chatOpenAi,
+    //   prompt: chatPrompt,
+    // });
+
+    const chain = RetrievalQAChain.fromLLM(chatOpenAi, vectorStore.asRetriever());
 
     const result = await chain.call({
       persona: persona,
