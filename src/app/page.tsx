@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import type { Dispatch, SetStateAction } from "react";
-import OpenAI from "openai";
 import { AnswerSection, type StoredValue } from "@/components/AnswerSection";
 import { PromptForm } from "@/components/PromptForm";
+import OpenAI from "openai";
+import type { Dispatch, SetStateAction } from "react";
+import { useState } from "react";
 
 export default function Home() {
   const [storedValues, setStoredValues] = useState<Array<StoredValue>>([]);
@@ -17,26 +17,28 @@ export default function Home() {
 
   const generateResponse = async (
     newQuestion: string,
-    setNewQuestion: Dispatch<SetStateAction<string>>
+    persona: string,
+    setNewQuestion: Dispatch<SetStateAction<string>>,
+    setNewPersona: Dispatch<SetStateAction<string>>
   ) => {
     const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming =
       {
         model: "gpt-3.5-turbo",
         temperature: 0,
-        max_tokens: 100,
+        max_tokens: 1000,
         top_p: 1,
         frequency_penalty: 0.0,
         presence_penalty: 0.0,
         stop: ["/"],
         messages: [
-          { role: "system", content: "Sistema de gerenciamento da vida do Sotero" },
+          { role: "system", content: persona || "Atendente de chat" },
         ],
       };
 
     const completeOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming =
       {
         ...params,
-        messages: [...params.messages, { role: "user", content: newQuestion }],
+        messages: [{ role: "system", content: persona || "Atendente de chat" }, { role: "user", content: newQuestion }],
       };
 
     const chatCompletion = await openai.chat.completions.create(
@@ -57,6 +59,7 @@ export default function Home() {
       ]);
 
       setNewQuestion("");
+      setNewPersona(persona);
     }
   };
 
