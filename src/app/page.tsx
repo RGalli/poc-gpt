@@ -1,65 +1,68 @@
 "use client";
 
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { AnswerSection, type StoredValue } from "@/components/AnswerSection";
 import { PromptForm } from "@/components/PromptForm";
-import OpenAI from "openai";
-import type { Dispatch, SetStateAction } from "react";
-import { useState } from "react";
+import { RetrievalQAChain } from "langchain/chains";
+import { ChatOpenAI } from "langchain/chat_models/openai";
+import { WebPDFLoader } from "langchain/document_loaders/web/pdf";
+import { OpenAIEmbeddings } from "langchain/embeddings/openai";
+import { PromptTemplate } from "langchain/prompts";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
 
 export default function Home() {
   const [storedValues, setStoredValues] = useState<Array<StoredValue>>([]);
 
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    organization: process.env.OPENAI_ORGANIZATION,
-    dangerouslyAllowBrowser: true,
+  const chatOpenAI = new ChatOpenAI({
+    openAIApiKey: process.env.OPENAI_API_KEY,
+    modelName: "gpt-3.5-turbo",
+    temperature: 0.1,
+    maxTokens: 1000,
   });
 
   const generateResponse = async (
     newQuestion: string,
-    persona: string,
     setNewQuestion: Dispatch<SetStateAction<string>>,
-    setNewPersona: Dispatch<SetStateAction<string>>
+    persona: string,
+    files: Array<File>
   ) => {
-    const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming =
-      {
-        model: "gpt-3.5-turbo",
-        temperature: 0,
-        max_tokens: 1000,
-        top_p: 1,
-        frequency_penalty: 0.0,
-        presence_penalty: 0.0,
-        stop: ["/"],
-        messages: [
-          { role: "system", content: persona || "Atendente de chat" },
-        ],
-      };
+    const vectorStore = new MemoryVectorStore(new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY }));
 
-    const completeOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming =
-      {
-        ...params,
-        messages: [{ role: "system", content: persona || "Atendente de chat" }, { role: "user", content: newQuestion }],
-      };
+    for (const file of files) {
+      const loader = new WebPDFLoader(file);
+      const docs = await loader.load();
 
-    const chatCompletion = await openai.chat.completions.create(
-      completeOptions
-    );
+      console.log({ docs });
 
-    console.log(chatCompletion);
+      await vectorStore.addDocuments(docs);
+    }
 
-    if (chatCompletion.choices) {
+    const question = newQuestion;
+
+    const chatPrompt = PromptTemplate.fromTemplate(`Você é um(a) {persona}. Responda como tal. 
+    Use o seguinte contexto abaixo para responder as perguntas. 
+    Se você não souber a resposta baseado no contexto, apenas diga que não sabe.
+    Não tente criar uma resposta.
+    {context}
+    Pergunta: {question}`);
+
+    const chain = RetrievalQAChain.fromLLM(chatOpenAI, vectorStore.asRetriever(), { prompt: chatPrompt });
+
+    const result = await chain.call({ query: question, persona: persona, question: question });
+
+    console.log({ result });
+
+    if (result.text) {
       setStoredValues([
         ...storedValues,
         {
-          id: chatCompletion.id,
-          answeredIn: chatCompletion.created,
+          answeredIn: Date.now(),
           question: newQuestion,
-          answer: chatCompletion.choices[0].message.content,
+          answer: result.text,
         },
       ]);
 
       setNewQuestion("");
-      setNewPersona(persona);
     }
   };
 
