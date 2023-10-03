@@ -4,7 +4,7 @@ import { AnswerSection, type StoredValue } from "@/components/AnswerSection";
 import { PromptForm } from "@/components/PromptForm";
 import { RetrievalQAChain } from "langchain/chains";
 import { ChatOpenAI } from "langchain/chat_models/openai";
-import { PDFLoader } from "langchain/document_loaders/fs/pdf";
+import { CheerioWebBaseLoader } from "langchain/document_loaders/web/cheerio";
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate } from "langchain/prompts";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
@@ -18,7 +18,7 @@ export default function Home() {
     openAIApiKey: process.env.OPENAI_API_KEY,
     temperature: 0,
     modelName: "gpt-3.5-turbo",
-    maxTokens: 1000,
+    maxTokens: 4000,
   });
 
   const generateResponse = async (
@@ -28,12 +28,13 @@ export default function Home() {
     setNewPersona: Dispatch<SetStateAction<string>>
   ) => {
 
-    const loader = new PDFLoader("/home/luizsotero/data/dev/findup/poc-gpt/cv-linkedin.pdf");
+    const loader = new CheerioWebBaseLoader("/cv-linkedin.txt");
     const docs = await loader.load();
 
-    const vectorStore = await MemoryVectorStore.fromDocuments(docs, new OpenAIEmbeddings());
+    const vectorStore = await MemoryVectorStore.fromDocuments(docs, new OpenAIEmbeddings({
+      openAIApiKey: process.env.OPENAI_API_KEY,
+    }));
 
-    // const resultOne = await vectorStore.similaritySearch("Luiz Sotero", 1);
 
     const question = newQuestion;
     const template = "Você é um(a) {persona}.";
@@ -43,14 +44,12 @@ export default function Home() {
 
     const chatPrompt = ChatPromptTemplate.fromMessages([systemMessagePrompt, humanMessagePrompt]);
 
-    // const chain = new LLMChain({
-    //   llm: chatOpenAi,
-    //   prompt: chatPrompt,
-    // });
-
-    const chain = RetrievalQAChain.fromLLM(chatOpenAi, vectorStore.asRetriever());
+    const chain = RetrievalQAChain.fromLLM(chatOpenAi, vectorStore.asRetriever(), {
+      prompt: chatPrompt
+    });
 
     const result = await chain.call({
+      query: question,
       persona: persona,
       question: question,
     });
@@ -63,7 +62,7 @@ export default function Home() {
         {
           id: "1",
           answeredIn: Date.now(),
-          question: newQuestion,
+          question: question,
           answer: result.text,
         },
       ]);

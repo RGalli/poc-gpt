@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "browser": {
-    "fs": false
+    "fs": false,
+    "os": false,
+    "path": false
   },
   "scripts": {
     "dev": "next dev",
@@ -17,7 +19,6 @@
     "langchain": "^0.0.157",
     "next": "latest",
     "openai": "^4.11.0",
-    "pdf-parse": "^1.1.1",
     "react": "latest",
     "react-dom": "latest"
   },
