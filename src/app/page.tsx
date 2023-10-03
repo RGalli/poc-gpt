@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, type Dispatch, type SetStateAction } from "react";
 import { AnswerSection, type StoredValue } from "@/components/AnswerSection";
 import { PromptForm } from "@/components/PromptForm";
 import { RetrievalQAChain } from "langchain/chains";
 import { ChatOpenAI } from "langchain/chat_models/openai";
 import { WebPDFLoader } from "langchain/document_loaders/web/pdf";
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
-import { ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate } from "langchain/prompts";
+import { PromptTemplate } from "langchain/prompts";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { useState, type Dispatch, type SetStateAction } from "react";
 
 export default function Home() {
   const [storedValues, setStoredValues] = useState<Array<StoredValue>>([]);
@@ -38,14 +38,13 @@ export default function Home() {
     }
 
     const question = newQuestion;
-    const template = "Você é um(a) {persona}.";
-    const systemMessagePrompt = SystemMessagePromptTemplate.fromTemplate(template);
-    const humanTemplate = "{question}";
-    const humanMessagePrompt = HumanMessagePromptTemplate.fromTemplate(humanTemplate);
 
-    const chatPrompt = ChatPromptTemplate.fromMessages([systemMessagePrompt, humanMessagePrompt]);
+    const chatPrompt = PromptTemplate.fromTemplate(`Você é um(a) {persona}. Responda como tal. Use o seguinte contexto
+    abaixo para responder as perguntas. Se você não souber a resposta baseado no contexto, apenas diga que não sabe.
+    Não tente criar uma resposta.
+    {context}
+    Pergunta: {question}`);
 
-    //const chain = new LLMChain({ llm: chatOpenAI, prompt: chatPrompt });
     const chain = RetrievalQAChain.fromLLM(chatOpenAI, vectorStore.asRetriever(), { prompt: chatPrompt });
 
     const result = await chain.call({ query: question, persona: persona, question: question });
